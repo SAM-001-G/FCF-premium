@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabaseClient.js'
-import { Link } from 'react-router-dom'
+import { useAuth } from '../../AuthContext.jsx'
 
-const roles = [
-  { value: 'pastor', label: 'Pastor' },
+const positions = [
   { value: 'media_team', label: 'Media Team' },
   { value: 'events_team', label: 'Events Team' },
   { value: 'prayer_team', label: 'Prayer Team' },
@@ -12,242 +12,202 @@ const roles = [
 ]
 
 export default function AdminRegister() {
+  const navigate = useNavigate()
+  const { session, loading: authLoading } = useAuth()
+
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [requestedRole, setRequestedRole] = useState('')
+  const [requestedPosition, setRequestedPosition] =
+    useState('media_team')
+
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
 
-  function validateForm() {
-    if (!fullName.trim()) {
-      return 'Full name is required'
+  // If the user is already authenticated, they don't need to register.
+  useEffect(() => {
+    if (!authLoading && session && !success) {
+      navigate('/admin', { replace: true })
     }
-
-    if (!email.trim()) {
-      return 'Email is required'
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return 'Please enter a valid email address'
-    }
-
-    if (!password) {
-      return 'Password is required'
-    }
-
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters'
-    }
-
-    if (password !== confirmPassword) {
-      return 'Passwords do not match'
-    }
-
-    if (!requestedRole) {
-      return 'Please select your requested position'
-    }
-
-    // Extra client-side protection.
-    // super_admin is intentionally not present in the selector.
-    if (requestedRole === 'super_admin') {
-      return 'Invalid requested position'
-    }
-
-    return null
-  }
+  }, [authLoading, session, success, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
+
+    if (loading) return
+
     setError(null)
 
-    const validationError = validateForm()
+    const cleanName = fullName.trim()
+    const cleanEmail = email.trim().toLowerCase()
 
-    if (validationError) {
-      setError(validationError)
+    if (!cleanName) {
+      setError('Please enter your full name.')
+      return
+    }
+
+    if (!cleanEmail) {
+      setError('Please enter your email address.')
+      return
+    }
+
+    if (password.length < 6) {
+      setError(
+        'Password must be at least 6 characters long.'
+      )
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('The passwords do not match.')
       return
     }
 
     setLoading(true)
 
     try {
-      const cleanName = fullName.trim()
-      const cleanEmail = email.trim().toLowerCase()
-
       /*
-       * IMPORTANT:
-       * We no longer insert directly into admin_signup_requests.
+       * Step 1:
+       * Create the Supabase Auth account.
        *
-       * The Supabase database trigger created in the SQL setup watches
-       * auth.users and automatically creates:
-       *
-       * 1. admin_signup_requests
-       * 2. admin_notifications
-       *
-       * This is necessary because email confirmation may mean there is
-       * no authenticated browser session immediately after signUp().
+       * emailRedirectTo is only relevant when email
+       * confirmation is enabled in Supabase Auth.
        */
-      const { data, error: signupError } = await supabase.auth.signUp({
+      const {
+        data: signUpData,
+        error: signUpError,
+      } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
           data: {
-            registration_type: 'admin',
             full_name: cleanName,
-            requested_role: requestedRole,
           },
+          emailRedirectTo: `${window.location.origin}/admin/login`,
         },
       })
 
-      if (signupError) {
-        throw signupError
+      if (signUpError) {
+        setError(signUpError.message)
+        return
       }
 
-      if (!data?.user?.id) {
-        throw new Error('Account creation failed. Please try again.')
-      }
+      const user = signUpData?.user
 
-      /*
-       * Supabase can return a user with no identities when an account
-       * already exists, depending on the project's email-enumeration
-       * protection settings.
-       */
-      if (data.user.identities && data.user.identities.length === 0) {
-        throw new Error(
-          'An account with this email may already exist. Please sign in instead.'
+      if (!user) {
+        setError(
+          'The account could not be created. Please try again.'
         )
+        return
       }
 
       /*
-       * At this point the database trigger has created the pending
-       * admin_signup_requests record.
-       *
-       * The notification trigger also creates notifications for all
-       * existing super_admin accounts.
+       * Depending on the Supabase email-confirmation setting,
+       * signUp() may return a session or may require the user
+       * to confirm their email first.
        */
-      setSubmitted(true)
+      if (!signUpData.session) {
+        setSuccess(true)
+        return
+      }
+
+      /*
+       * Step 2:
+       * The user is authenticated, so submit the admin access
+       * request using their authenticated user ID.
+       *
+       * The database RLS policy should allow the authenticated
+       * user to create their own request.
+       */
+      const {
+        error: requestError,
+      } = await supabase
+        .from('admin_signup_requests')
+        .insert({
+          user_id: user.id,
+          full_name: cleanName,
+          email: cleanEmail,
+          requested_position: requestedPosition,
+          status: 'pending',
+        })
+
+      if (requestError) {
+        console.error(
+          'Admin signup request error:',
+          requestError
+        )
+
+        /*
+         * The Auth account was created, but the request failed.
+         * Do not silently pretend registration succeeded.
+         */
+        setError(
+          `Account created, but the access request could not be submitted: ${requestError.message}`
+        )
+        return
+      }
+
+      setSuccess(true)
     } catch (err) {
-      console.error('Admin registration error:', err)
+      console.error(
+        'Admin registration error:',
+        err
+      )
 
       setError(
         err?.message ||
-        'Unable to create your account request. Please try again.'
+          'Something went wrong during registration. Please try again.'
       )
     } finally {
       setLoading(false)
     }
   }
 
-  if (submitted) {
+  if (authLoading) {
     return (
-      <div className="admin-login form-box">
-        <div style={{ textAlign: 'center' }}>
-
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              margin: '0 auto 18px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(76, 175, 80, 0.12)',
-              color: '#2e7d32',
-              fontSize: '2rem',
-              fontWeight: 700,
-            }}
-          >
-            ✓
-          </div>
-
-          <h2
-            style={{
-              color: 'var(--navy)',
-              margin: '0 0 12px',
-            }}
-          >
-            Registration Request Submitted
-          </h2>
-
-          <p
-            style={{
-              color: 'var(--text-soft)',
-              lineHeight: 1.6,
-              marginBottom: 24,
-            }}
-          >
-            Your admin account request has been sent to an FCF administrator
-            for approval.
-          </p>
-
-          <p
-            style={{
-              color: 'var(--text-soft)',
-              fontSize: '0.9rem',
-              lineHeight: 1.5,
-              marginBottom: 24,
-            }}
-          >
-            You will be able to access the admin dashboard once your request
-            has been approved.
-          </p>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
-          >
-            <Link
-              to="/admin/login"
-              className="btn btn-navy"
-              style={{
-                display: 'block',
-                textDecoration: 'none',
-              }}
-            >
-              Go to Admin Login
-            </Link>
-
-            <Link
-              to="/"
-              style={{
-                color: 'var(--blue)',
-                textDecoration: 'none',
-                fontSize: '0.9rem',
-              }}
-            >
-              Back to Website
-            </Link>
-          </div>
+      <div
+        className="admin-login form-box"
+        style={{ textAlign: 'center' }}
+      >
+        <div
+          style={{
+            fontSize: '2rem',
+            marginBottom: 12,
+          }}
+        >
+          ⏳
         </div>
+
+        <h2
+          style={{
+            color: 'var(--navy)',
+            margin: 0,
+          }}
+        >
+          Checking session…
+        </h2>
       </div>
     )
   }
 
   return (
     <div className="admin-login form-box">
-
-      {/* Header */}
       <div
         style={{
           textAlign: 'center',
-          marginBottom: 24,
+          marginBottom: 20,
         }}
       >
         <img
           src="/logo.png"
-          alt="Faith in Christ Fellowship"
+          alt="FCF"
           style={{
             height: 60,
             width: 60,
-            margin: '0 auto 12px',
+            margin: '0 auto 10px',
             borderRadius: '50%',
-            objectFit: 'cover',
           }}
         />
 
@@ -262,78 +222,211 @@ export default function AdminRegister() {
 
         <p
           style={{
-            color: 'var(--text-soft)',
+            color: '#6b7789',
+            marginTop: 6,
             fontSize: '0.9rem',
-            margin: '8px 0 0',
           }}
         >
-          Request access to the FCF administration dashboard
+          Request access to the FCF administration
+          dashboard
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div
-          role="alert"
+          className="success-msg"
           style={{
             background: '#fde8e8',
             color: '#a92323',
-            padding: '12px 14px',
-            borderRadius: 12,
-            marginBottom: 20,
-            lineHeight: 1.45,
-            fontSize: '0.9rem',
+            marginBottom: 16,
           }}
         >
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      {success ? (
+        <div style={{ textAlign: 'center' }}>
+          <div
+            className="success-msg"
+            style={{ marginBottom: 18 }}
+          >
+            Your admin access request has been
+            submitted successfully.
+          </div>
 
-        {/* Full Name */}
-        <div className="form-field">
-          <label htmlFor="admin-full-name">
-            Full Name
-          </label>
+          <p
+            style={{
+              color: '#6b7789',
+              lineHeight: 1.6,
+            }}
+          >
+            Your account/request is now awaiting
+            approval. If email confirmation is enabled,
+            check your inbox and confirm your email
+            address first.
+          </p>
 
-          <input
-            id="admin-full-name"
-            type="text"
-            required
-            autoComplete="name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Enter your full name"
-            disabled={loading}
-          />
+          <button
+            type="button"
+            className="btn btn-navy"
+            style={{
+              width: '100%',
+              marginTop: 12,
+            }}
+            onClick={() =>
+              navigate('/admin/login', {
+                replace: true,
+              })
+            }
+          >
+            Go to Admin Login
+          </button>
         </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          {/* Full Name */}
+          <div className="form-field">
+            <label htmlFor="admin-full-name">
+              Full Name
+            </label>
 
-        {/* Email */}
-        <div className="form-field">
-          <label htmlFor="admin-email">
-            Email
-          </label>
+            <input
+              id="admin-full-name"
+              type="text"
+              required
+              autoComplete="name"
+              value={fullName}
+              onChange={(e) =>
+                setFullName(e.target.value)
+              }
+              placeholder="Enter your full name"
+              disabled={loading}
+            />
+          </div>
 
-          <input
-            id="admin-email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+          {/* Email */}
+          <div className="form-field">
+            <label htmlFor="admin-email">
+              Email
+            </label>
+
+            <input
+              id="admin-email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="you@example.com"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Password */}
+          <div className="form-field">
+            <label htmlFor="admin-password">
+              Password
+            </label>
+
+            <input
+              id="admin-password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              placeholder="At least 6 characters"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div className="form-field">
+            <label htmlFor="admin-confirm-password">
+              Confirm Password
+            </label>
+
+            <input
+              id="admin-confirm-password"
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) =>
+                setConfirmPassword(e.target.value)
+              }
+              placeholder="Enter the password again"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Requested Position */}
+          <div className="form-field">
+            <label htmlFor="requested-position">
+              Requested Position
+            </label>
+
+            <select
+              id="requested-position"
+              value={requestedPosition}
+              onChange={(e) =>
+                setRequestedPosition(e.target.value)
+              }
+              disabled={loading}
+              required
+            >
+              {positions.map((position) => (
+                <option
+                  key={position.value}
+                  value={position.value}
+                >
+                  {position.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-navy"
+            style={{
+              width: '100%',
+              opacity: loading ? 0.7 : 1,
+            }}
             disabled={loading}
-          />
-        </div>
+          >
+            {loading
+              ? 'Creating Account…'
+              : 'Create Account'}
+          </button>
+        </form>
+      )}
 
-        {/* Password */}
-        <div className="form-field">
-          <label htmlFor="admin-password">
-            Password
-          </label>
-
-          <input
-            id="admin-password"
-            type="password"
-            required
+      {!success && (
+        <p
+          style={{
+            fontSize: '0.85rem',
+            marginTop: 16,
+            textAlign: 'center',
+            color: '#6b7789',
+          }}
+        >
+          Already have an admin account?{' '}
+          <Link
+            to="/admin/login"
+            style={{ color: 'var(--sky)' }}
+          >
+            Sign in
+          </Link>
+        </p>
+      )}
+    </div>
+  )
+}
