@@ -4,37 +4,66 @@ import { supabase } from './supabaseClient.js'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined) // undefined = loading
-  const [adminProfile, setAdminProfile] = useState(null)
-  const [signupRequest, setSignupRequest] = useState(null)
-  const [error, setError] = useState(null)
+  const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
-    if (!supabase) {
-      setError('Supabase not initialized - missing environment variables')
-      return
+    let mounted = true
+
+    async function initializeAuth() {
+      const { data, error } = await supabase.auth.getSession()
+
+      if (!mounted) return
+
+      if (error) {
+        console.error('Supabase session initialization failed:', error)
+        setSession(null)
+      } else {
+        setSession(data?.session ?? null)
+      }
+
+      setAuthLoading(false)
     }
 
-    try {
-      supabase.auth.getSession()
-        .then(({ data }) => {
-          setSession(data.session)
-          if (data.session?.user) {
-            loadAdminProfile(data.session.user.id)
-          }
-        })
-        .catch((err) => {
-          console.error('Auth initialization error:', err)
-          setError(err.message)
-          setSession(null)
-        })
+    initializeAuth()
 
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session)
-        if (session?.user) {
-          loadAdminProfile(session.user.id)
-        } else {
-          setAdminProfile(null)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return
+
+      setSession(nextSession ?? null)
+      setAuthLoading(false)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const value = {
+    session,
+    authLoading,
+    isAuthenticated: Boolean(session),
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+
+  if (!context) {
+    throw new Error('useAuth must be used inside an AuthProvider')
+  }
+
+  return context
+      }          setAdminProfile(null)
           setSignupRequest(null)
         }
       })
