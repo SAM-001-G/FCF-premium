@@ -37,7 +37,7 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
 
 .container { max-width: 1120px; margin: 0 auto; padding: 0 22px; }
 
-/* Navbar — frosted glass */
+/* Navbar — frosted glass, responsive */
 .navbar {
   display: flex;
   align-items: center;
@@ -52,12 +52,92 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.01em; }
   top: 0;
   z-index: 50;
   box-shadow: 0 8px 30px rgba(79,111,239,0.06);
+  gap: 20px;
 }
-.navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.navbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; flex-shrink: 0; }
 .navbar .brand img { height: 38px; width: 38px; border-radius: 50%; box-shadow: 0 2px 10px rgba(11,37,69,0.15); }
-.navbar nav { display: flex; gap: 20px; flex-wrap: wrap; }
-.navbar nav a { font-size: 0.88rem; color: var(--text-soft); transition: color 0.2s var(--ease); }
-.navbar nav a:hover { color: var(--blue); }
+.navbar .brand span { display: none; }
+.navbar .navbar-desktop { display: flex; gap: 24px; align-items: center; flex: 1; }
+.navbar .navbar-desktop a { font-size: 0.88rem; color: var(--text-soft); transition: color 0.2s var(--ease); white-space: nowrap; }
+.navbar .navbar-desktop a:hover { color: var(--blue); }
+.navbar-mobile-toggle { display: none; background: none; border: none; font-size: 1.5rem; color: var(--navy); cursor: pointer; padding: 8px; }
+.navbar-mobile { display: none; }
+.navbar-mobile-overlay { display: none; }
+
+@media (max-width: 900px) {
+  .navbar { padding: 14px 20px; }
+  .navbar .brand span { display: block; font-size: 0.9rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .navbar .navbar-desktop { display: none; }
+  .navbar-mobile-toggle { display: block; }
+  
+  .navbar-mobile {
+    position: fixed;
+    left: 0;
+    top: 68px;
+    width: 100%;
+    max-height: calc(100vh - 68px);
+    background: linear-gradient(150deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88));
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.5);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 49;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: opacity 0.25s var(--ease), visibility 0.25s var(--ease), transform 0.25s var(--ease);
+    box-shadow: 0 10px 30px rgba(79,111,239,0.1);
+    overflow-y: auto;
+  }
+  
+  .navbar-mobile.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  
+  .navbar-mobile a {
+    display: block;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    color: var(--text);
+    transition: background 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  
+  .navbar-mobile a:hover {
+    background: rgba(79,111,239,0.08);
+    color: var(--blue);
+  }
+  
+  .navbar-mobile-overlay {
+    display: block;
+    position: fixed;
+    top: 68px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(11,37,69,0.2);
+    backdrop-filter: blur(2px);
+    z-index: 48;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s var(--ease), visibility 0.25s var(--ease);
+  }
+  
+  .navbar-mobile.open ~ .navbar-mobile-overlay {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@media (max-width: 600px) {
+  .navbar { padding: 12px 16px; }
+  .navbar .brand img { height: 34px; width: 34px; }
+  .navbar .brand span { font-size: 0.8rem; max-width: 100px; }
+}
 
 /* Hero — editorial, floating, light-diffused */
 .hero {
@@ -352,7 +432,6 @@ table.admin-table th { background: rgba(79,111,239,0.06); color: var(--navy); fo
 .admin-item-card img { height: 140px; object-fit: cover; width: 100%; }
 .admin-item-noimg { height: 140px; display: flex; align-items: center; justify-content: center; background: rgba(79,111,239,0.06); font-size: 2rem; }
 .admin-item-actions { display: flex; gap: 8px; margin-top: 8px; }
-/* Dense action buttons stay high-contrast and solid for clarity, just softened at the edges */
 .admin-btn-sm { padding: 5px 12px; font-size: 0.78rem; color: var(--navy); border: 1.5px solid var(--navy); border-radius: 20px; background: white; transition: box-shadow 0.15s var(--ease); }
 .admin-btn-sm:hover { box-shadow: 0 4px 12px rgba(11,37,69,0.18); }
 .admin-btn-danger { color: #a92323; border-color: #a92323; }
@@ -556,4 +635,3 @@ table.admin-table th { background: rgba(79,111,239,0.06); color: var(--navy); fo
     text-align: center;
   }
 }
-
