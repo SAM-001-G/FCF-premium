@@ -1,5 +1,5 @@
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../AuthContext.jsx'
 import { supabase } from '../supabaseClient.js'
 
@@ -14,22 +14,111 @@ const navItems = [
   ['/admin/testimonies', 'Testimonies', '❤️'],
   ['/admin/visitors', 'Visitors', '🧑‍🤝‍🧑'],
   ['/admin/users', 'Team', '🛡️'],
+  ['/admin/signup-requests', 'Signup Requests', '✉️'],
 ]
 
 const pageTitles = Object.fromEntries(navItems.map(([href, label]) => [href, label]))
 
 export default function AdminLayout({ children }) {
-  const { session } = useAuth()
+  const { session, adminProfile, signupRequest } = useAuth()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Load pending signup requests count
+  useEffect(() => {
+    if (adminProfile?.role === 'super_admin') {
+      const loadPendingCount = async () => {
+        const { data } = await supabase
+          .from('admin_signup_requests')
+          .select('id', { count: 'exact' })
+          .eq('status', 'pending')
+        setPendingCount(data?.length || 0)
+      }
+      loadPendingCount()
+    }
+  }, [adminProfile])
 
   if (session === undefined) return <div style={{ padding: 40 }}>Loading…</div>
   if (session === null) return <Navigate to="/admin/login" replace />
 
+  // User has a pending signup request
+  if (signupRequest && signupRequest.status === 'pending') {
+    return (
+      <div className="form-box" style={{ maxWidth: 500, margin: '120px auto' }}>
+        <h2 style={{ color: 'var(--navy)', textAlign: 'center', marginTop: 0 }}>Request Pending</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-soft)' }}>
+          Your admin account request is pending approval. An FCF administrator must review and approve your request for the <strong>{signupRequest.requested_role}</strong> position.
+        </p>
+        <div style={{ display: 'flex', gap: 12, marginTop: 28 }}>
+          <Link to="/" className="btn btn-outline" style={{ flex: 1, textAlign: 'center' }}>
+            Back to Website
+          </Link>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="btn btn-outline"
+            style={{ flex: 1 }}
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // User's signup request was rejected
+  if (signupRequest && signupRequest.status === 'rejected') {
+    return (
+      <div className="form-box" style={{ maxWidth: 500, margin: '120px auto' }}>
+        <h2 style={{ color: 'var(--navy)', textAlign: 'center', marginTop: 0 }}>Request Not Approved</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-soft)' }}>
+          Your admin account request was not approved.
+        </p>
+        {signupRequest.rejection_reason && (
+          <div style={{
+            background: 'rgba(255,192,203,0.2)',
+            border: '1px solid rgba(255,0,0,0.2)',
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 20,
+            fontSize: '0.9rem',
+            color: 'var(--text)'
+          }}>
+            <strong>Reason:</strong> {signupRequest.rejection_reason}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 12, marginTop: 28 }}>
+          <Link to="/" className="btn btn-outline" style={{ flex: 1, textAlign: 'center' }}>
+            Back to Website
+          </Link>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="btn btn-outline"
+            style={{ flex: 1 }}
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // No admin profile and no pending request - not authorized
+  if (!adminProfile) {
+    return <Navigate to="/admin/login" replace />
+  }
+
   const currentTitle = pageTitles[location.pathname] || 'Admin'
   const userEmail = session.user?.email || ''
   const initial = userEmail.charAt(0).toUpperCase() || 'A'
+
+  // Filter nav items based on role
+  let visibleNavItems = navItems
+  if (adminProfile.role !== 'super_admin') {
+    // Hide signup requests from non-super-admins
+    visibleNavItems = navItems.filter(item => item[0] !== '/admin/signup-requests')
+  }
 
   return (
     <div className="admin-shell">
@@ -44,7 +133,7 @@ export default function AdminLayout({ children }) {
         </Link>
 
         <nav className="admin-nav">
-          {navItems.map(([href, label, icon]) => (
+          {visibleNavItems.map(([href, label, icon]) => (
             <Link
               key={href}
               to={href}
@@ -52,6 +141,19 @@ export default function AdminLayout({ children }) {
               onClick={() => setMenuOpen(false)}
             >
               <span className="nav-icon">{icon}</span> {label}
+              {href === '/admin/signup-requests' && pendingCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto',
+                  background: 'var(--blue)',
+                  color: 'white',
+                  fontSize: '0.7rem',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  fontWeight: 600
+                }}>
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
