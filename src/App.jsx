@@ -46,6 +46,10 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />
+<Route
+  path="/admin/reset-password"
+  element={<AdminResetPassword />}
+/>
         <Route path="/admin/register" element={<AdminRegister />} />
         <Route
           path="/admin/reset-password"
