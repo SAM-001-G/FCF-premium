@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabaseClient.js'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 const roles = [
   { value: 'pastor', label: 'Pastor' },
@@ -20,16 +20,42 @@ export default function AdminRegister() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const navigate = useNavigate()
 
   function validateForm() {
-    if (!fullName.trim()) return 'Full name is required'
-    if (!email.trim()) return 'Email is required'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Valid email is required'
-    if (!password) return 'Password is required'
-    if (password.length < 8) return 'Password must be at least 8 characters'
-    if (password !== confirmPassword) return 'Passwords do not match'
-    if (!requestedRole) return 'Requested position is required'
+    if (!fullName.trim()) {
+      return 'Full name is required'
+    }
+
+    if (!email.trim()) {
+      return 'Email is required'
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return 'Please enter a valid email address'
+    }
+
+    if (!password) {
+      return 'Password is required'
+    }
+
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters'
+    }
+
+    if (password !== confirmPassword) {
+      return 'Passwords do not match'
+    }
+
+    if (!requestedRole) {
+      return 'Please select your requested position'
+    }
+
+    // Extra client-side protection.
+    // super_admin is intentionally not present in the selector.
+    if (requestedRole === 'super_admin') {
+      return 'Invalid requested position'
+    }
+
     return null
   }
 
@@ -38,50 +64,77 @@ export default function AdminRegister() {
     setError(null)
 
     const validationError = validateForm()
+
     if (validationError) {
       setError(validationError)
       return
     }
 
     setLoading(true)
+
     try {
-      // Sign up user
+      const cleanName = fullName.trim()
+      const cleanEmail = email.trim().toLowerCase()
+
+      /*
+       * IMPORTANT:
+       * We no longer insert directly into admin_signup_requests.
+       *
+       * The Supabase database trigger created in the SQL setup watches
+       * auth.users and automatically creates:
+       *
+       * 1. admin_signup_requests
+       * 2. admin_notifications
+       *
+       * This is necessary because email confirmation may mean there is
+       * no authenticated browser session immediately after signUp().
+       */
       const { data, error: signupError } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
+        options: {
+          data: {
+            registration_type: 'admin',
+            full_name: cleanName,
+            requested_role: requestedRole,
+          },
+        },
       })
 
-      if (signupError) throw signupError
-      if (!data.user?.id) throw new Error('Failed to create account')
+      if (signupError) {
+        throw signupError
+      }
 
-      // Create signup request record
-      const { error: requestError } = await supabase
-        .from('admin_signup_requests')
-        .insert([{
-          user_id: data.user.id,
-          full_name: fullName,
-          email,
-          requested_role: requestedRole,
-          status: 'pending',
-        }])
+      if (!data?.user?.id) {
+        throw new Error('Account creation failed. Please try again.')
+      }
 
-      if (requestError) throw requestError
+      /*
+       * Supabase can return a user with no identities when an account
+       * already exists, depending on the project's email-enumeration
+       * protection settings.
+       */
+      if (data.user.identities && data.user.identities.length === 0) {
+        throw new Error(
+          'An account with this email may already exist. Please sign in instead.'
+        )
+      }
 
-      // Create notification for super_admins
-      const { error: notifError } = await supabase
-        .from('admin_notifications')
-        .insert([{
-          type: 'admin_signup_request',
-          title: 'New admin account request',
-          message: `${fullName} requested an admin account as ${requestedRole}.`,
-          request_id: data.user.id,
-        }])
-
-      if (notifError) console.error('Notification error:', notifError)
-
+      /*
+       * At this point the database trigger has created the pending
+       * admin_signup_requests record.
+       *
+       * The notification trigger also creates notifications for all
+       * existing super_admin accounts.
+       */
       setSubmitted(true)
     } catch (err) {
-      setError(err.message || 'Failed to register')
+      console.error('Admin registration error:', err)
+
+      setError(
+        err?.message ||
+        'Unable to create your account request. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -91,14 +144,86 @@ export default function AdminRegister() {
     return (
       <div className="admin-login form-box">
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>✓</div>
-          <h2 style={{ color: 'var(--navy)', margin: '0 0 12px' }}>Registration Request Submitted</h2>
-          <p style={{ color: 'var(--text-soft)', marginBottom: 24 }}>
-            Your account request has been sent to an FCF administrator for approval. You will be able to access the admin area once your request is approved.
+
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              margin: '0 auto 18px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(76, 175, 80, 0.12)',
+              color: '#2e7d32',
+              fontSize: '2rem',
+              fontWeight: 700,
+            }}
+          >
+            ✓
+          </div>
+
+          <h2
+            style={{
+              color: 'var(--navy)',
+              margin: '0 0 12px',
+            }}
+          >
+            Registration Request Submitted
+          </h2>
+
+          <p
+            style={{
+              color: 'var(--text-soft)',
+              lineHeight: 1.6,
+              marginBottom: 24,
+            }}
+          >
+            Your admin account request has been sent to an FCF administrator
+            for approval.
           </p>
-          <Link to="/" className="btn btn-navy" style={{ display: 'inline-block' }}>
-            Back to Website
-          </Link>
+
+          <p
+            style={{
+              color: 'var(--text-soft)',
+              fontSize: '0.9rem',
+              lineHeight: 1.5,
+              marginBottom: 24,
+            }}
+          >
+            You will be able to access the admin dashboard once your request
+            has been approved.
+          </p>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <Link
+              to="/admin/login"
+              className="btn btn-navy"
+              style={{
+                display: 'block',
+                textDecoration: 'none',
+              }}
+            >
+              Go to Admin Login
+            </Link>
+
+            <Link
+              to="/"
+              style={{
+                color: 'var(--blue)',
+                textDecoration: 'none',
+                fontSize: '0.9rem',
+              }}
+            >
+              Back to Website
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -106,82 +231,109 @@ export default function AdminRegister() {
 
   return (
     <div className="admin-login form-box">
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <img src="/logo.png" alt="FCF" style={{ height: 60, width: 60, margin: '0 auto 10px', borderRadius: '50%' }} />
-        <h2 style={{ color: 'var(--navy)', margin: 0 }}>Create Admin Account</h2>
-        <p style={{ color: 'var(--text-soft)', fontSize: '0.9rem', margin: '8px 0 0' }}>
-          Request access to the admin dashboard
+
+      {/* Header */}
+      <div
+        style={{
+          textAlign: 'center',
+          marginBottom: 24,
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="Faith in Christ Fellowship"
+          style={{
+            height: 60,
+            width: 60,
+            margin: '0 auto 12px',
+            borderRadius: '50%',
+            objectFit: 'cover',
+          }}
+        />
+
+        <h2
+          style={{
+            color: 'var(--navy)',
+            margin: 0,
+          }}
+        >
+          Create Admin Account
+        </h2>
+
+        <p
+          style={{
+            color: 'var(--text-soft)',
+            fontSize: '0.9rem',
+            margin: '8px 0 0',
+          }}
+        >
+          Request access to the FCF administration dashboard
         </p>
       </div>
 
-      {error && <div className="success-msg" style={{ background: '#fde8e8', color: '#a92323' }}>{error}</div>}
+      {/* Error */}
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: '#fde8e8',
+            color: '#a92323',
+            padding: '12px 14px',
+            borderRadius: 12,
+            marginBottom: 20,
+            lineHeight: 1.45,
+            fontSize: '0.9rem',
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
+
+        {/* Full Name */}
         <div className="form-field">
-          <label>Full Name</label>
+          <label htmlFor="admin-full-name">
+            Full Name
+          </label>
+
           <input
+            id="admin-full-name"
             type="text"
             required
+            autoComplete="name"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            placeholder="Enter your full name"
+            disabled={loading}
           />
         </div>
+
+        {/* Email */}
         <div className="form-field">
-          <label>Email</label>
+          <label htmlFor="admin-email">
+            Email
+          </label>
+
           <input
+            id="admin-email"
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            disabled={loading}
           />
         </div>
-        <div className="form-field">
-          <label>Password</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Confirm Password</label>
-          <input
-            type="password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Requested Position</label>
-          <select
-            required
-            value={requestedRole}
-            onChange={(e) => setRequestedRole(e.target.value)}
-          >
-            <option value="">Select a position</option>
-            {roles.map(role => (
-              <option key={role.value} value={role.value}>{role.label}</option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="submit"
-          className="btn btn-navy"
-          style={{ width: '100%' }}
-          disabled={loading}
-        >
-          {loading ? 'Registering...' : 'Create Account'}
-        </button>
-      </form>
 
-      <p style={{ fontSize: '0.85rem', marginTop: 14, textAlign: 'center' }}>
-        Already have an account?{' '}
-        <Link to="/admin/login" style={{ color: 'var(--blue)' }}>
-          Sign in
-        </Link>
-      </p>
-    </div>
-  )
-}
+        {/* Password */}
+        <div className="form-field">
+          <label htmlFor="admin-password">
+            Password
+          </label>
+
+          <input
+            id="admin-password"
+            type="password"
+            required
