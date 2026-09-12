@@ -1,4 +1,3 @@
-cat > src/pages/admin/AdminSignupRequests.jsx <<'EOF'
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import AdminLayout from '../../components/AdminLayout.jsx'
@@ -377,4 +376,3 @@ export default function AdminSignupRequests() {
     </AdminLayout>
   )
 }
-EOF

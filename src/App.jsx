@@ -1,6 +1,4 @@
-cat > src/App.jsx <<'EOF'
 import { Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './AuthContext.jsx'
 
 import Home from './pages/Home.jsx'
 import About from './pages/About.jsx'
@@ -31,8 +29,7 @@ import AdminSignupRequests from './pages/admin/AdminSignupRequests.jsx'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    <Routes>
         {/* Public pages */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
@@ -73,7 +70,5 @@ export default function App() {
           element={<AdminSignupRequests />}
         />
       </Routes>
-    </AuthProvider>
   )
 }
-EOF
