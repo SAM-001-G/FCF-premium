@@ -14,6 +14,7 @@ import PlanVisit from './pages/PlanVisit.jsx'
 import Contact from './pages/Contact.jsx'
 
 import AdminLogin from './pages/admin/AdminLogin.jsx'
+import AdminRegister from './pages/admin/AdminRegister.jsx'
 import ResetPassword from './pages/admin/ResetPassword.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import AdminEvents from './pages/admin/AdminEvents.jsx'
@@ -25,6 +26,7 @@ import AdminPrayer from './pages/admin/AdminPrayer.jsx'
 import AdminTestimonies from './pages/admin/AdminTestimonies.jsx'
 import AdminVisitors from './pages/admin/AdminVisitors.jsx'
 import AdminUsers from './pages/admin/AdminUsers.jsx'
+import AdminSignupRequests from './pages/admin/AdminSignupRequests.jsx'
 
 export default function App() {
   return (
@@ -43,6 +45,7 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/register" element={<AdminRegister />} />
         <Route
           path="/admin/reset-password"
           element={<ResetPassword />}
@@ -57,6 +60,7 @@ export default function App() {
         <Route path="/admin/testimonies" element={<AdminTestimonies />} />
         <Route path="/admin/visitors" element={<AdminVisitors />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/signup-requests" element={<AdminSignupRequests />} />
       </Routes>
     </AuthProvider>
   )
