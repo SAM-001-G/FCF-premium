@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../supabaseClient.js'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('')
@@ -55,8 +55,10 @@ export default function AdminLogin() {
               Forgot password?
             </a>
           </p>
-          <p style={{ fontSize: '0.8rem', color: '#6b7789', marginTop: 6 }}>
-            Admin accounts are created by the Super Admin via the Supabase dashboard.
+          <p style={{ fontSize: '0.8rem', color: '#6b7789', marginTop: 12 }}>
+            <Link to="/admin/register" style={{ color: 'var(--blue)' }}>
+              Don't have an admin account? Create an account
+            </Link>
           </p>
         </>
       ) : (
