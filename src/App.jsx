@@ -27,6 +27,7 @@ import AdminTestimonies from './pages/admin/AdminTestimonies.jsx'
 import AdminVisitors from './pages/admin/AdminVisitors.jsx'
 import AdminUsers from './pages/admin/AdminUsers.jsx'
 import AdminSignupRequests from './pages/admin/AdminSignupRequests.jsx'
+import AdminResetPassword from './pages/admin/AdminResetPassword.jsx'
 
 export default function App() {
   return (
