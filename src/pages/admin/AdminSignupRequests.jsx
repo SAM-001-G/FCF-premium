@@ -36,61 +36,85 @@ export default function AdminSignupRequests() {
     loadRequests()
   }, [])
 
-  async function handleApprove(requestId, userId, email, fullName, role) {
-    try {
-      // Update signup request
-      const { error: updateError } = await supabase
-        .from('admin_signup_requests')
-        .update({
-          status: 'approved',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: supabase.auth.getUser().then(({ data }) => data.user?.id),
-        })
-        .eq('user_id', userId)
+  async function handleApprove(async function handleApprove(requestId, userId, email, fullName, role) {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-      if (updateError) throw updateError
+    if (userError) throw userError
+    if (!user?.id) throw new Error('Unable to identify the approving administrator')
 
-      // Create or update admin profile
-      const { error: profileError } = await supabase
-        .from('admin_profiles')
-        .upsert({
-          id: userId,
-          email,
-          full_name: fullName,
-          role,
-        })
+    const { error: updateError } = await supabase
+      .from('admin_signup_requests')
+      .update({
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user.id,
+      })
+      .eq('id', requestId)
 
-      if (profileError) throw profileError
+    if (updateError) throw updateError
 
-      // Reload requests
-      await loadRequests()
-      setError(null)
-    } catch (err) {
-      setError(err.message)
-    }
+    const { error: profileError } = await supabase
+      .from('admin_profiles')
+      .upsert({
+        id: userId,
+        email,
+        full_name: fullName,
+        role,
+      })
+
+    if (profileError) throw profileError
+
+    await loadRequests()
+    setError(null)
+  } catch (err) {
+    setError(err.message)
+  }
+      }
   }
 
   async function handleReject(userId, reason = '') {
-    try {
-      const { error: rejectError } = await supabase
-        .from('admin_signup_requests')
-        .update({
-          status: 'rejected',
-          rejection_reason: reason,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: supabase.auth.getUser().then(({ data }) => data.user?.id),
-        })
-        .eq('user_id', userId)
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-      if (rejectError) throw rejectError
+    if (userError) throw userError
 
-      // Reload requests
-      await loadRequests()
-      setRejectionReasons(prev => ({ ...prev, [userId]: '' }))
-      setError(null)
-    } catch (err) {
-      setError(err.message)
+    if (!user?.id) {
+      throw new Error(
+        'Unable to identify the reviewing administrator'
+      )
     }
+
+    const { error: rejectError } = await supabase
+      .from('admin_signup_requests')
+      .update({
+        status: 'rejected',
+        rejection_reason: reason,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user.id,
+      })
+      .eq('user_id', userId)
+
+    if (rejectError) throw rejectError
+
+    await loadRequests()
+
+    setRejectionReasons(prev => ({
+      ...prev,
+      [userId]: '',
+    }))
+
+    setError(null)
+  } catch (err) {
+    setError(err.message)
+  }
+}
   }
 
   const pendingRequests = requests.filter(r => r.status === 'pending')
