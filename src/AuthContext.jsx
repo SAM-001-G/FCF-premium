@@ -5,27 +5,27 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
 
-    async function initializeAuth() {
+    async function loadSession() {
       const { data, error } = await supabase.auth.getSession()
 
       if (!mounted) return
 
       if (error) {
-        console.error('Supabase session initialization failed:', error)
+        console.error('Supabase session error:', error)
         setSession(null)
       } else {
-        setSession(data?.session ?? null)
+        setSession(data.session ?? null)
       }
 
-      setAuthLoading(false)
+      setLoading(false)
     }
 
-    initializeAuth()
+    loadSession()
 
     const {
       data: { subscription },
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
       if (!mounted) return
 
       setSession(nextSession ?? null)
-      setAuthLoading(false)
+      setLoading(false)
     })
 
     return () => {
@@ -44,7 +44,8 @@ export function AuthProvider({ children }) {
 
   const value = {
     session,
-    authLoading,
+    user: session?.user ?? null,
+    loading,
     isAuthenticated: Boolean(session),
   }
 
@@ -63,49 +64,4 @@ export function useAuth() {
   }
 
   return context
-      }          setAdminProfile(null)
-          setSignupRequest(null)
-        }
-      })
-      return () => listener?.subscription?.unsubscribe()
-    } catch (err) {
-      console.error('Auth setup error:', err)
-      setError(err.message)
-      setSession(null)
-    }
-  }, [])
-
-  async function loadAdminProfile(userId) {
-    try {
-      // Load admin profile
-      const { data: profile } = await supabase
-        .from('admin_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      setAdminProfile(profile || null)
-
-      // Load signup request status
-      const { data: request } = await supabase
-        .from('admin_signup_requests')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle()
-
-      setSignupRequest(request || null)
-    } catch (err) {
-      console.error('Error loading admin profile:', err)
-    }
-  }
-
-  return (
-    <AuthContext.Provider value={{ session, error, adminProfile, signupRequest }}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
-export function useAuth() {
-  return useContext(AuthContext)
 }
