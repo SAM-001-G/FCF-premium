@@ -21,8 +21,11 @@ export default function AdminLogin() {
   async function handleReset(e) {
     e.preventDefault()
     setError(null)
+    const siteUrl =
+      import.meta.env.VITE_SITE_URL ||
+      'https://fcf-website-premium.vercel.app'
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/admin/login`,
+      redirectTo: `${siteUrl}/admin/reset-password`,
     })
     if (error) setError(error.message)
     else setResetSent(true)

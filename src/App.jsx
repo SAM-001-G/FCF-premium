@@ -14,6 +14,7 @@ import PlanVisit from './pages/PlanVisit.jsx'
 import Contact from './pages/Contact.jsx'
 
 import AdminLogin from './pages/admin/AdminLogin.jsx'
+import ResetPassword from './pages/admin/ResetPassword.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import AdminEvents from './pages/admin/AdminEvents.jsx'
 import AdminSermons from './pages/admin/AdminSermons.jsx'
@@ -42,6 +43,10 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin/reset-password"
+          element={<ResetPassword />}
+        />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/events" element={<AdminEvents />} />
         <Route path="/admin/sermons" element={<AdminSermons />} />
