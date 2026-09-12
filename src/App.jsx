@@ -1,3 +1,4 @@
+cat > src/App.jsx <<'EOF'
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './AuthContext.jsx'
 
@@ -15,7 +16,7 @@ import Contact from './pages/Contact.jsx'
 
 import AdminLogin from './pages/admin/AdminLogin.jsx'
 import AdminRegister from './pages/admin/AdminRegister.jsx'
-import ResetPassword from './pages/admin/ResetPassword.jsx'
+import AdminResetPassword from './pages/admin/AdminResetPassword.jsx'
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
 import AdminEvents from './pages/admin/AdminEvents.jsx'
 import AdminSermons from './pages/admin/AdminSermons.jsx'
@@ -27,12 +28,12 @@ import AdminTestimonies from './pages/admin/AdminTestimonies.jsx'
 import AdminVisitors from './pages/admin/AdminVisitors.jsx'
 import AdminUsers from './pages/admin/AdminUsers.jsx'
 import AdminSignupRequests from './pages/admin/AdminSignupRequests.jsx'
-import AdminResetPassword from './pages/admin/AdminResetPassword.jsx'
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Public pages */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/events" element={<Events />} />
@@ -45,28 +46,34 @@ export default function App() {
         <Route path="/visit" element={<PlanVisit />} />
         <Route path="/contact" element={<Contact />} />
 
+        {/* Authentication */}
         <Route path="/admin/login" element={<AdminLogin />} />
-<Route
-  path="/admin/reset-password"
-  element={<AdminResetPassword />}
-/>
         <Route path="/admin/register" element={<AdminRegister />} />
         <Route
           path="/admin/reset-password"
-          element={<ResetPassword />}
+          element={<AdminResetPassword />}
         />
+
+        {/* Admin */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/events" element={<AdminEvents />} />
         <Route path="/admin/sermons" element={<AdminSermons />} />
-        <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+        <Route
+          path="/admin/announcements"
+          element={<AdminAnnouncements />}
+        />
         <Route path="/admin/ministries" element={<AdminMinistries />} />
         <Route path="/admin/leadership" element={<AdminLeadership />} />
         <Route path="/admin/prayer" element={<AdminPrayer />} />
         <Route path="/admin/testimonies" element={<AdminTestimonies />} />
         <Route path="/admin/visitors" element={<AdminVisitors />} />
         <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/signup-requests" element={<AdminSignupRequests />} />
+        <Route
+          path="/admin/signup-requests"
+          element={<AdminSignupRequests />}
+        />
       </Routes>
     </AuthProvider>
   )
 }
+EOF
