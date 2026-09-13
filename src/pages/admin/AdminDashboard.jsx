@@ -1,97 +1,128 @@
-import { Link } from 'react-router-dom'
-import AdminLayout from '../../components/AdminLayout.jsx'
-
-// DIAGNOSTIC VERSION
-// Deliberately contains ZERO Supabase calls.
-// If this renders, the admin shell/routing is working and the
-// remaining problem is isolated to the Supabase/data layer.
 export default function AdminDashboard() {
-  const stats = [
-    ['12', 'Upcoming Events'],
-    ['7', 'New Prayer Requests'],
-    ['4', 'Pending Testimonies'],
-    ['9', 'New Visitors'],
-  ]
-
-  const quickActions = [
-    ['/admin/events', '+ Create Event'],
-    ['/admin/announcements', '+ Post Announcement'],
-    ['/admin/sermons', '+ Upload Sermon'],
-    ['/admin/leadership', '+ Add Leader'],
-  ]
-
   return (
-    <AdminLayout>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: '0 0 6px', color: 'var(--navy)' }}>
-          Dashboard
-        </h1>
-
-        <p style={{ margin: 0, color: '#6b7789' }}>
-          Faith in Christ Fellowship administration overview
-        </p>
-      </div>
-
-      <div className="grid grid-3" style={{ marginBottom: 24 }}>
-        {stats.map(([num, label]) => (
-          <div className="stat-card" key={label}>
-            <div className="num">{num}</div>
-            <div className="label">{label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-2" style={{ marginBottom: 24 }}>
-        {quickActions.map(([href, label]) => (
-          <Link
-            key={href}
-            to={href}
-            className="btn btn-navy"
-            style={{ textAlign: 'center' }}
-          >
-            {label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid grid-2">
-        <div className="card" style={{ padding: 20 }}>
-          <h3 style={{ marginTop: 0, color: 'var(--navy)' }}>
-            Recent Prayer Requests
-          </h3>
-
-          <div
-            style={{
-              borderBottom: '1px solid #eef1f5',
-              padding: '10px 0',
-              fontSize: '0.85rem',
-            }}
-          >
-            <strong>Anonymous</strong> — Prayer for the church family
-          </div>
-
-          <div
-            style={{
-              borderBottom: '1px solid #eef1f5',
-              padding: '10px 0',
-              fontSize: '0.85rem',
-            }}
-          >
-            <strong>Member</strong> — Thanksgiving and breakthrough
-          </div>
-
-          <Link
-            to="/admin/prayer"
-            style={{
-              display: 'inline-block',
-              marginTop: 12,
-              fontSize: '0.8rem',
-              color: 'var(--sky)',
-            }}
-          >
-            View all →
-          </Link>
+    <div
+      style={{
+        minHeight: '100vh',
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: '40px 24px',
+        background: '#f8fafc',
+        color: '#111827',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+          background: '#ffffff',
+          border: '2px solid #2563eb',
+          borderRadius: '20px',
+          padding: '32px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+        }}
+      >
+        <div
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            borderRadius: '999px',
+            background: '#dcfce7',
+            color: '#166534',
+            fontWeight: '700',
+            fontSize: '14px',
+            marginBottom: '20px',
+          }}
+        >
+          ADMIN DIAGNOSTIC — ACTIVE
         </div>
 
-        <div className="card" style={{ padding: 20 }}>
-          <h
+        <h1
+          style={{
+            fontSize: '36px',
+            margin: '0 0 12px',
+            color: '#111827',
+          }}
+        >
+          FCF Admin Dashboard
+        </h1>
+
+        <p
+          style={{
+            fontSize: '18px',
+            margin: '0 0 30px',
+            color: '#4b5563',
+          }}
+        >
+          If you can see this screen, the /admin route and React rendering
+          are working.
+        </p>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+          }}
+        >
+          <div
+            style={{
+              padding: '24px',
+              borderRadius: '16px',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+            }}
+          >
+            <div style={{ fontSize: '32px', fontWeight: '800' }}>01</div>
+            <div style={{ marginTop: '6px', fontWeight: '600' }}>
+              Route Working
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '24px',
+              borderRadius: '16px',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+            }}
+          >
+            <div style={{ fontSize: '32px', fontWeight: '800' }}>02</div>
+            <div style={{ marginTop: '6px', fontWeight: '600' }}>
+              React Working
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '24px',
+              borderRadius: '16px',
+              background: '#faf5ff',
+              border: '1px solid #e9d5ff',
+            }}
+          >
+            <div style={{ fontSize: '32px', fontWeight: '800' }}>03</div>
+            <div style={{ marginTop: '6px', fontWeight: '600' }}>
+              Component Working
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '30px',
+            padding: '18px',
+            borderRadius: '12px',
+            background: '#111827',
+            color: '#ffffff',
+            fontSize: '14px',
+          }}
+        >
+          <strong>DIAGNOSTIC:</strong> This page contains no Supabase,
+          no AuthContext, no AdminLayout, no database queries, and no
+          external dependencies.
+        </div>
+      </div>
+    </div>
+  )
+}
