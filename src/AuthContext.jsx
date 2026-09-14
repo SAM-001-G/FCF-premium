@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient.js'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined) // undefined = loading
+  const [session, setSession] = useState(undefined)
   const [adminProfile, setAdminProfile] = useState(null)
   const [signupRequest, setSignupRequest] = useState(null)
   const [error, setError] = useState(null)
@@ -12,66 +12,104 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!supabase) {
       setError('Supabase not initialized - missing environment variables')
+      setSession(null)
       return
     }
 
-    try {
-      supabase.auth.getSession()
-        .then(({ data }) => {
-          setSession(data.session)
-          if (data.session?.user) {
-            loadAdminProfile(data.session.user.id)
-          }
-        })
-        .catch((err) => {
-          console.error('Auth initialization error:', err)
+    let mounted = true
+
+    async function initializeAuth() {
+      try {
+        const { data, error: sessionError } =
+          await supabase.auth.getSession()
+
+        if (sessionError) throw sessionError
+
+        if (!mounted) return
+
+        setSession(data.session)
+
+        if (data.session?.user) {
+          await loadAdminProfile(data.session.user.id)
+        }
+      } catch (err) {
+        console.error('Auth initialization error:', err)
+
+        if (mounted) {
           setError(err.message)
           setSession(null)
-        })
-
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session)
-        if (session?.user) {
-          loadAdminProfile(session.user.id)
-        } else {
           setAdminProfile(null)
           setSignupRequest(null)
         }
-      })
-      return () => listener?.subscription?.unsubscribe()
-    } catch (err) {
-      console.error('Auth setup error:', err)
-      setError(err.message)
-      setSession(null)
+      }
+    }
+
+    initializeAuth()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!mounted) return
+
+      setSession(nextSession)
+
+      if (nextSession?.user) {
+        await loadAdminProfile(nextSession.user.id)
+      } else {
+        setAdminProfile(null)
+        setSignupRequest(null)
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription?.unsubscribe()
     }
   }, [])
 
   async function loadAdminProfile(userId) {
     try {
-      // Load admin profile
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('admin_profiles')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
+
+      if (profileError) {
+        console.error('Admin profile error:', profileError)
+      }
 
       setAdminProfile(profile || null)
 
-      // Load signup request status
-      const { data: request } = await supabase
+      const { data: request, error: requestError } = await supabase
         .from('admin_signup_requests')
         .select('*')
         .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
+
+      if (requestError) {
+        console.error('Signup request error:', requestError)
+      }
 
       setSignupRequest(request || null)
     } catch (err) {
-      console.error('Error loading admin profile:', err)
+      console.error('Error loading admin access:', err)
+      setAdminProfile(null)
+      setSignupRequest(null)
     }
   }
 
   return (
-    <AuthContext.Provider value={{ session, error, adminProfile, signupRequest }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        error,
+        adminProfile,
+        signupRequest,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

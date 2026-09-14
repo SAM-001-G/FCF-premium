@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './AuthContext.jsx'
+import AdminRoute from './components/AdminRoute.jsx'
 
 import Home from './pages/Home.jsx'
 import About from './pages/About.jsx'
@@ -32,6 +33,8 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
+
+        {/* PUBLIC WEBSITE */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/events" element={<Events />} />
@@ -44,23 +47,114 @@ export default function App() {
         <Route path="/visit" element={<PlanVisit />} />
         <Route path="/contact" element={<Contact />} />
 
+        {/* PUBLIC AUTH */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/register" element={<AdminRegister />} />
         <Route
           path="/admin/reset-password"
           element={<ResetPassword />}
         />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/events" element={<AdminEvents />} />
-        <Route path="/admin/sermons" element={<AdminSermons />} />
-        <Route path="/admin/announcements" element={<AdminAnnouncements />} />
-        <Route path="/admin/ministries" element={<AdminMinistries />} />
-        <Route path="/admin/leadership" element={<AdminLeadership />} />
-        <Route path="/admin/prayer" element={<AdminPrayer />} />
-        <Route path="/admin/testimonies" element={<AdminTestimonies />} />
-        <Route path="/admin/visitors" element={<AdminVisitors />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
-        <Route path="/admin/signup-requests" element={<AdminSignupRequests />} />
+
+        {/* PROTECTED ADMIN */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/events"
+          element={
+            <AdminRoute>
+              <AdminEvents />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/sermons"
+          element={
+            <AdminRoute>
+              <AdminSermons />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/announcements"
+          element={
+            <AdminRoute>
+              <AdminAnnouncements />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/ministries"
+          element={
+            <AdminRoute>
+              <AdminMinistries />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/leadership"
+          element={
+            <AdminRoute>
+              <AdminLeadership />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/prayer"
+          element={
+            <AdminRoute>
+              <AdminPrayer />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/testimonies"
+          element={
+            <AdminRoute>
+              <AdminTestimonies />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/visitors"
+          element={
+            <AdminRoute>
+              <AdminVisitors />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+  path="/admin/signup-requests"
+  element={
+    <AdminRoute>
+      <AdminSignupRequests />
+    </AdminRoute>
+  }
+/>
+
       </Routes>
     </AuthProvider>
   )

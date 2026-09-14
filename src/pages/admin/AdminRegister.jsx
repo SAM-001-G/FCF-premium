@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { supabase } from '../../supabaseClient.js'
 import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../../supabaseClient.js'
 
-const roles = [
+const ROLES = [
   { value: 'pastor', label: 'Pastor' },
   { value: 'media_team', label: 'Media Team' },
   { value: 'events_team', label: 'Events Team' },
@@ -12,76 +12,89 @@ const roles = [
 ]
 
 export default function AdminRegister() {
+  const navigate = useNavigate()
+
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [requestedRole, setRequestedRole] = useState('')
-  const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const navigate = useNavigate()
 
-  function validateForm() {
-    if (!fullName.trim()) return 'Full name is required'
-    if (!email.trim()) return 'Email is required'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Valid email is required'
-    if (!password) return 'Password is required'
-    if (password.length < 8) return 'Password must be at least 8 characters'
-    if (password !== confirmPassword) return 'Passwords do not match'
-    if (!requestedRole) return 'Requested position is required'
-    return null
-  }
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null)
+    const cleanName = fullName.trim()
+    const cleanEmail = email.trim().toLowerCase()
 
-    const validationError = validateForm()
-    if (validationError) {
-      setError(validationError)
+    if (!cleanName) {
+      setError('Please enter your full name.')
+      return
+    }
+
+    if (!cleanEmail) {
+      setError('Please enter your email address.')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    if (!requestedRole) {
+      setError('Please select the position you are requesting.')
       return
     }
 
     setLoading(true)
+
     try {
-      // Sign up user
-      const { data, error: signupError } = await supabase.auth.signUp({
-        email,
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: cleanEmail,
         password,
+        options: {
+          data: {
+            registration_type: 'admin',
+            full_name: cleanName,
+            requested_role: requestedRole,
+          },
+        },
       })
 
-      if (signupError) throw signupError
-      if (!data.user?.id) throw new Error('Failed to create account')
+      if (signUpError) {
+        throw signUpError
+      }
 
-      // Create signup request record
-      const { error: requestError } = await supabase
-        .from('admin_signup_requests')
-        .insert([{
-          user_id: data.user.id,
-          full_name: fullName,
-          email,
-          requested_role: requestedRole,
-          status: 'pending',
-        }])
+      if (!data?.user) {
+        throw new Error('Registration could not be completed. Please try again.')
+      }
 
-      if (requestError) throw requestError
-
-      // Create notification for super_admins
-      const { error: notifError } = await supabase
-        .from('admin_notifications')
-        .insert([{
-          type: 'admin_signup_request',
-          title: 'New admin account request',
-          message: `${fullName} requested an admin account as ${requestedRole}.`,
-          request_id: data.user.id,
-        }])
-
-      if (notifError) console.error('Notification error:', notifError)
+      /*
+       * IMPORTANT:
+       * The Supabase auth.users trigger creates the corresponding
+       * admin_signup_requests record automatically.
+       *
+       * Do NOT insert into admin_signup_requests here.
+       * Do NOT insert into admin_notifications here.
+       */
 
       setSubmitted(true)
     } catch (err) {
-      setError(err.message || 'Failed to register')
+      console.error('Admin registration error:', err)
+
+      setError(
+        err?.message ||
+          'Unable to submit your registration request. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
@@ -90,14 +103,21 @@ export default function AdminRegister() {
   if (submitted) {
     return (
       <div className="admin-login form-box">
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>✓</div>
-          <h2 style={{ color: 'var(--navy)', margin: '0 0 12px' }}>Registration Request Submitted</h2>
-          <p style={{ color: 'var(--text-soft)', marginBottom: 24 }}>
-            Your account request has been sent to an FCF administrator for approval. You will be able to access the admin area once your request is approved.
-          </p>
-          <Link to="/" className="btn btn-navy" style={{ display: 'inline-block' }}>
-            Back to Website
+        <h1>Registration Submitted</h1>
+
+        <p>
+          Your administrator registration request has been submitted
+          successfully.
+        </p>
+
+        <p>
+          A Super Admin will review your request before administrator access
+          is granted.
+        </p>
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <Link to="/admin/login" className="btn">
+            Continue to Admin Login
           </Link>
         </div>
       </div>
@@ -106,81 +126,125 @@ export default function AdminRegister() {
 
   return (
     <div className="admin-login form-box">
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <img src="/logo.png" alt="FCF" style={{ height: 60, width: 60, margin: '0 auto 10px', borderRadius: '50%' }} />
-        <h2 style={{ color: 'var(--navy)', margin: 0 }}>Create Admin Account</h2>
-        <p style={{ color: 'var(--text-soft)', fontSize: '0.9rem', margin: '8px 0 0' }}>
-          Request access to the admin dashboard
-        </p>
-      </div>
+      <h1>Request Admin Access</h1>
 
-      {error && <div className="success-msg" style={{ background: '#fde8e8', color: '#a92323' }}>{error}</div>}
+      <p>
+        Create an administrator account request for Faith in Christ
+        Fellowship.
+      </p>
 
       <form onSubmit={handleSubmit}>
-        <div className="form-field">
-          <label>Full Name</label>
+        <div className="form-group">
+          <label htmlFor="fullName">Full Name</label>
+
           <input
+            id="fullName"
             type="text"
-            required
             value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder="Enter your full name"
+            autoComplete="name"
+            disabled={loading}
           />
         </div>
-        <div className="form-field">
-          <label>Email</label>
+
+        <div className="form-group">
+          <label htmlFor="email">Email Address</label>
+
           <input
+            id="email"
             type="email"
-            required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Enter your email address"
+            autoComplete="email"
+            disabled={loading}
           />
         </div>
-        <div className="form-field">
-          <label>Password</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Confirm Password</label>
-          <input
-            type="password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
-        <div className="form-field">
-          <label>Requested Position</label>
+
+        <div className="form-group">
+          <label htmlFor="requestedRole">Requested Position</label>
+
           <select
-            required
+            id="requestedRole"
             value={requestedRole}
-            onChange={(e) => setRequestedRole(e.target.value)}
+            onChange={(event) => setRequestedRole(event.target.value)}
+            disabled={loading}
           >
             <option value="">Select a position</option>
-            {roles.map(role => (
-              <option key={role.value} value={role.value}>{role.label}</option>
+
+            {ROLES.map((role) => (
+              <option key={role.value} value={role.value}>
+                {role.label}
+              </option>
             ))}
           </select>
         </div>
-        <button
-          type="submit"
-          className="btn btn-navy"
-          style={{ width: '100%' }}
-          disabled={loading}
-        >
-          {loading ? 'Registering...' : 'Create Account'}
+
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="At least 8 characters"
+            autoComplete="new-password"
+            disabled={loading}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="confirmPassword">Confirm Password</label>
+
+          <input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="Confirm your password"
+            autoComplete="new-password"
+            disabled={loading}
+          />
+        </div>
+
+        {error && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: '1rem',
+              padding: '0.75rem',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <button type="submit" className="btn" disabled={loading}>
+          {loading ? 'Submitting Request…' : 'Request Admin Access'}
         </button>
       </form>
 
-      <p style={{ fontSize: '0.85rem', marginTop: 14, textAlign: 'center' }}>
+      <p style={{ marginTop: '1.5rem' }}>
         Already have an account?{' '}
-        <Link to="/admin/login" style={{ color: 'var(--blue)' }}>
-          Sign in
-        </Link>
+        <Link to="/admin/login">Sign in</Link>
+      </p>
+
+      <p style={{ marginTop: '0.75rem' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          disabled={loading}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+        >
+          Return to website
+        </button>
       </p>
     </div>
   )
