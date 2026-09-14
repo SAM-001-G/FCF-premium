@@ -5,42 +5,69 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined)
-  const [adminProfile, setAdminProfile] = useState(null)
-  const [signupRequest, setSignupRequest] = useState(null)
+  const [adminProfile, setAdminProfile] = useState(undefined)
+  const [signupRequest, setSignupRequest] = useState(undefined)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!supabase) {
-      setError('Supabase not initialized - missing environment variables')
-      setSession(null)
-      return
-    }
-
     let mounted = true
 
-    async function initializeAuth() {
-      try {
-        const { data, error: sessionError } =
-          await supabase.auth.getSession()
+    async function resolveSession(nextSession) {
+      if (!mounted) return
 
-        if (sessionError) throw sessionError
+      // No session = definitely logged out.
+      if (!nextSession) {
+        setAdminProfile(null)
+        setSignupRequest(null)
+        setSession(null)
+        return
+      }
+
+      try {
+        const { profile, request } =
+          await loadAdminAccess(nextSession.user.id)
 
         if (!mounted) return
 
-        setSession(data.session)
+        setAdminProfile(profile)
+        setSignupRequest(request)
 
-        if (data.session?.user) {
-          await loadAdminProfile(data.session.user.id)
+        // Only expose the session after admin access
+        // has finished loading.
+        setSession(nextSession)
+      } catch (err) {
+        console.error('Admin access resolution error:', err)
+
+        if (!mounted) return
+
+        setError(err.message || 'Unable to verify administrator access.')
+        setAdminProfile(null)
+        setSignupRequest(null)
+        setSession(nextSession)
+      }
+    }
+
+    async function initializeAuth() {
+      try {
+        const {
+          data,
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          throw sessionError
         }
+
+        await resolveSession(data.session)
       } catch (err) {
         console.error('Auth initialization error:', err)
 
-        if (mounted) {
-          setError(err.message)
-          setSession(null)
-          setAdminProfile(null)
-          setSignupRequest(null)
-        }
+        if (!mounted) return
+
+        setError(err.message || 'Authentication initialization failed.')
+        setSession(null)
+        setAdminProfile(null)
+        setSignupRequest(null)
       }
     }
 
@@ -48,18 +75,22 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) return
+    } = supabase.auth.onAuthStateChange(
+      (event, nextSession) => {
+        if (!mounted) return
 
-      setSession(nextSession)
-
-      if (nextSession?.user) {
-        await loadAdminProfile(nextSession.user.id)
-      } else {
-        setAdminProfile(null)
-        setSignupRequest(null)
+        /*
+         * Don't perform database queries directly inside the
+         * auth callback. Queue the work after Supabase finishes
+         * processing the auth event.
+         */
+        setTimeout(() => {
+          if (mounted) {
+            resolveSession(nextSession)
+          }
+        }, 0)
       }
-    })
+    )
 
     return () => {
       mounted = false
@@ -67,37 +98,40 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  async function loadAdminProfile(userId) {
-    try {
-      const { data: profile, error: profileError } = await supabase
-        .from('admin_profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle()
+  async function loadAdminAccess(userId) {
+    const {
+      data: profile,
+      error: profileError,
+    } = await supabase
+      .from('admin_profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle()
 
-      if (profileError) {
-        console.error('Admin profile error:', profileError)
-      }
+    if (profileError) {
+      console.error('Admin profile error:', profileError)
+    }
 
-      setAdminProfile(profile || null)
+    const {
+      data: request,
+      error: requestError,
+    } = await supabase
+      .from('admin_signup_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', {
+        ascending: false,
+      })
+      .limit(1)
+      .maybeSingle()
 
-      const { data: request, error: requestError } = await supabase
-        .from('admin_signup_requests')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    if (requestError) {
+      console.error('Signup request error:', requestError)
+    }
 
-      if (requestError) {
-        console.error('Signup request error:', requestError)
-      }
-
-      setSignupRequest(request || null)
-    } catch (err) {
-      console.error('Error loading admin access:', err)
-      setAdminProfile(null)
-      setSignupRequest(null)
+    return {
+      profile: profile || null,
+      request: request || null,
     }
   }
 
