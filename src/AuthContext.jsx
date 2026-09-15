@@ -6,68 +6,89 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined)
   const [adminProfile, setAdminProfile] = useState(undefined)
-  const [signupRequest, setSignupRequest] = useState(undefined)
+  const [signupRequest, setSignupRequest] = useState(null)
   const [error, setError] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [adminLoading, setAdminLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true
+    let requestId = 0
 
-    async function resolveSession(nextSession) {
-      if (!mounted) return
-
-      // No session = definitely logged out.
-      if (!nextSession) {
-        setAdminProfile(null)
-        setSignupRequest(null)
-        setSession(null)
-        return
-      }
+    async function loadAdminAccess(userId) {
+      const currentRequest = ++requestId
 
       try {
-        const { profile, request } =
-          await loadAdminAccess(nextSession.user.id)
+        const { data: profile, error: profileError } = await supabase
+          .from('admin_profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
 
-        if (!mounted) return
+        if (profileError) throw profileError
 
-        setAdminProfile(profile)
-        setSignupRequest(request)
+        const { data: request, error: requestError } = await supabase
+          .from('admin_signup_requests')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-        // Only expose the session after admin access
-        // has finished loading.
-        setSession(nextSession)
+        if (requestError) throw requestError
+
+        if (!mounted || currentRequest !== requestId) return
+
+        setAdminProfile(profile || null)
+        setSignupRequest(request || null)
+        setError(null)
       } catch (err) {
-        console.error('Admin access resolution error:', err)
+        console.error('Error loading admin access:', err)
 
-        if (!mounted) return
+        if (!mounted || currentRequest !== requestId) return
 
-        setError(err.message || 'Unable to verify administrator access.')
         setAdminProfile(null)
         setSignupRequest(null)
-        setSession(nextSession)
+        setError(err?.message || 'Unable to verify administrator access.')
+      } finally {
+        if (mounted && currentRequest === requestId) {
+          setAdminLoading(false)
+        }
       }
     }
 
     async function initializeAuth() {
       try {
-        const {
-          data,
-          error: sessionError,
-        } = await supabase.auth.getSession()
+        const { data, error: sessionError } =
+          await supabase.auth.getSession()
 
-        if (sessionError) {
-          throw sessionError
+        if (sessionError) throw sessionError
+        if (!mounted) return
+
+        setSession(data.session || null)
+        setAuthLoading(false)
+
+        if (data.session?.user) {
+          setAdminLoading(true)
+          await loadAdminAccess(data.session.user.id)
+        } else {
+          setAdminProfile(null)
+          setSignupRequest(null)
+          setAdminLoading(false)
         }
-
-        await resolveSession(data.session)
       } catch (err) {
         console.error('Auth initialization error:', err)
 
         if (!mounted) return
 
-        setError(err.message || 'Authentication initialization failed.')
+        setError(
+          err?.message || 'Authentication initialization failed.'
+        )
         setSession(null)
         setAdminProfile(null)
         setSignupRequest(null)
+        setAdminLoading(false)
+        setAuthLoading(false)
       }
     }
 
@@ -75,65 +96,38 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (event, nextSession) => {
-        if (!mounted) return
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return
 
-        /*
-         * Don't perform database queries directly inside the
-         * auth callback. Queue the work after Supabase finishes
-         * processing the auth event.
-         */
-        setTimeout(() => {
-          if (mounted) {
-            resolveSession(nextSession)
-          }
-        }, 0)
+      setSession(nextSession || null)
+      setAuthLoading(false)
+
+      if (!nextSession?.user) {
+        requestId += 1
+        setAdminProfile(null)
+        setSignupRequest(null)
+        setAdminLoading(false)
+        setError(null)
+        return
       }
-    )
+
+      setAdminLoading(true)
+
+      // Defer database access until Supabase finishes
+      // processing the authentication event.
+      setTimeout(() => {
+        if (mounted) {
+          loadAdminAccess(nextSession.user.id)
+        }
+      }, 0)
+    })
 
     return () => {
       mounted = false
+      requestId += 1
       subscription?.unsubscribe()
     }
   }, [])
-
-  async function loadAdminAccess(userId) {
-    const {
-      data: profile,
-      error: profileError,
-    } = await supabase
-      .from('admin_profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-
-    if (profileError) {
-      console.error('Admin profile error:', profileError)
-    }
-
-    const {
-      data: request,
-      error: requestError,
-    } = await supabase
-      .from('admin_signup_requests')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', {
-        ascending: false,
-      })
-      .limit(1)
-      .maybeSingle()
-
-    if (requestError) {
-      console.error('Signup request error:', requestError)
-    }
-
-    return {
-      profile: profile || null,
-      request: request || null,
-    }
-  }
 
   return (
     <AuthContext.Provider
@@ -142,6 +136,8 @@ export function AuthProvider({ children }) {
         error,
         adminProfile,
         signupRequest,
+        authLoading,
+        adminLoading,
       }}
     >
       {children}
